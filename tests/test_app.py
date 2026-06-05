@@ -219,3 +219,7 @@ def test_get_user_events_since_in_future_returns_empty_list(client, user):
     response = client.get(f"/users/{user['id']}/events?since={future_str}")
     assert response.status_code == 200
     assert response.json() == []
+
+def test_get_user_events_invalid_since_returns_422(client, user):
+    response = client.get(f"/users/{user['id']}/events?since=not-a-date")
+    assert response.status_code == 422
