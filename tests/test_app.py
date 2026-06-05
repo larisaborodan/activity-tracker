@@ -200,3 +200,7 @@ def test_get_user_events_filtered_by_since(client, user):
     events = response.json()
     assert len(events) == 2
     assert all(e["event_type"] in ["click", "logout"] for e in events)
+
+def test_get_user_events_unknown_user_returns_404(client):
+    response = client.get("/users/99999/events")
+    assert response.status_code == 404
