@@ -258,3 +258,12 @@ def test_get_user_events_returns_only_non_deleted(client, user):
     assert r1.json()["id"] in returned_ids
     assert r3.json()["id"] in returned_ids
     assert r2.json()["id"] not in returned_ids
+def test_get_user_events_returns_chronological_order(client, user):
+    for event_type in ["login", "page_view", "click"]:
+        client.post("/events", json={"user_id": user["id"], "event_type": event_type, "metadata": {}})
+
+    response = client.get(f"/users/{user['id']}/events")
+    assert response.status_code == 200
+    events = response.json()
+    timestamps = [e["created_at"] for e in events]
+    assert timestamps == sorted(timestamps)
