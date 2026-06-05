@@ -54,6 +54,8 @@ class Storage:
         event = self._events.get(event_id)
         if event is None:
             return None
+        if event.deleted_at is not None:
+            return None
         event.deleted_at = datetime.now(timezone.utc)
         return event
 
