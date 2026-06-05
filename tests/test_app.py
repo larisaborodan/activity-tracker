@@ -209,3 +209,13 @@ def test_get_user_events_no_events_returns_empty_list(client, user):
     response = client.get(f"/users/{user['id']}/events")
     assert response.status_code == 200
     assert response.json() == []
+
+def test_get_user_events_since_in_future_returns_empty_list(client, user):
+    client.post("/events", json={"user_id": user["id"], "event_type": "login", "metadata": {}})
+
+    future = datetime(2099, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    future_str = future.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+
+    response = client.get(f"/users/{user['id']}/events?since={future_str}")
+    assert response.status_code == 200
+    assert response.json() == []
