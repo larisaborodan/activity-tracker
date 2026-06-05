@@ -242,3 +242,19 @@ def test_get_user_events_excludes_soft_deleted(client, user):
     response = client.get(f"/users/{user['id']}/events")
     assert response.status_code == 200
     assert response.json() == []
+
+def test_get_user_events_returns_only_non_deleted(client, user):
+    r1 = client.post("/events", json={"user_id": user["id"], "event_type": "login", "metadata": {}})
+    r2 = client.post("/events", json={"user_id": user["id"], "event_type": "page_view", "metadata": {}})
+    r3 = client.post("/events", json={"user_id": user["id"], "event_type": "click", "metadata": {}})
+
+    client.delete(f"/events/{r2.json()['id']}")
+
+    response = client.get(f"/users/{user['id']}/events")
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 2
+    returned_ids = {e["id"] for e in events}
+    assert r1.json()["id"] in returned_ids
+    assert r3.json()["id"] in returned_ids
+    assert r2.json()["id"] not in returned_ids
