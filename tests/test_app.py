@@ -223,3 +223,13 @@ def test_get_user_events_since_in_future_returns_empty_list(client, user):
 def test_get_user_events_invalid_since_returns_422(client, user):
     response = client.get(f"/users/{user['id']}/events?since=not-a-date")
     assert response.status_code == 422
+
+def test_get_user_events_since_is_exclusive(client, user):
+    client.post("/events", json={"user_id": user["id"], "event_type": "login", "metadata": {}})
+
+    events_before = client.get(f"/users/{user['id']}/events").json()
+    since_str = events_before[0]["created_at"].replace("+00:00", "Z")
+
+    response = client.get(f"/users/{user['id']}/events?since={since_str}")
+    assert response.status_code == 200
+    assert response.json() == []
