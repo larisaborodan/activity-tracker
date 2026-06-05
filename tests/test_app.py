@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.storage import storage
-
+from datetime import datetime, timezone
 
 @pytest.fixture(autouse=True)
 def reset_storage():
@@ -184,3 +184,19 @@ def test_get_user_events_returns_all_events(client, user):
     assert response.status_code == 200
     events = response.json()
     assert len(events) == 3
+
+def test_get_user_events_filtered_by_since(client, user):
+    client.post("/events", json={"user_id": user["id"], "event_type": "login", "metadata": {}})
+    client.post("/events", json={"user_id": user["id"], "event_type": "page_view", "metadata": {}})
+
+    since = datetime.now(timezone.utc)
+    since_str = since.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+
+    client.post("/events", json={"user_id": user["id"], "event_type": "click", "metadata": {}})
+    client.post("/events", json={"user_id": user["id"], "event_type": "logout", "metadata": {}})
+
+    response = client.get(f"/users/{user['id']}/events?since={since_str}")
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 2
+    assert all(e["event_type"] in ["click", "logout"] for e in events)
