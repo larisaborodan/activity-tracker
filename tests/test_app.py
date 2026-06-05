@@ -204,3 +204,8 @@ def test_get_user_events_filtered_by_since(client, user):
 def test_get_user_events_unknown_user_returns_404(client):
     response = client.get("/users/99999/events")
     assert response.status_code == 404
+
+def test_get_user_events_no_events_returns_empty_list(client, user):
+    response = client.get(f"/users/{user['id']}/events")
+    assert response.status_code == 200
+    assert response.json() == []
