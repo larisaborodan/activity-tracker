@@ -233,3 +233,12 @@ def test_get_user_events_since_is_exclusive(client, user):
     response = client.get(f"/users/{user['id']}/events?since={since_str}")
     assert response.status_code == 200
     assert response.json() == []
+def test_get_user_events_excludes_soft_deleted(client, user):
+    response = client.post("/events", json={"user_id": user["id"], "event_type": "login", "metadata": {}})
+    event_id = response.json()["id"]
+
+    client.delete(f"/events/{event_id}")
+
+    response = client.get(f"/users/{user['id']}/events")
+    assert response.status_code == 200
+    assert response.json() == []
