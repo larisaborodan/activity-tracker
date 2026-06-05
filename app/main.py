@@ -8,6 +8,9 @@ from fastapi import FastAPI, HTTPException, Query
 from app.models import Event, EventCreate, User, UserCreate
 from app.storage import storage
 
+from datetime import datetime
+from typing import Optional
+
 app = FastAPI(title="Activity Tracker API", version="0.1.0")
 
 
@@ -27,6 +30,16 @@ def get_user(user_id: int) -> User:
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+@app.get("/users/{user_id}/events", response_model=list[Event])
+def get_user_events(
+    user_id: int,
+    since: Optional[datetime] = Query(None),
+ ) -> list[Event]:
+    user = storage.get_user(user_id)
+    if user is None:
+         raise HTTPException(status_code=404, detail="User not found")
+    return storage.get_user_events(user_id=user_id, since=since)
 
 
 @app.post("/events", response_model=Event,status_code=201)
