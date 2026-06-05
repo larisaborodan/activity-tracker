@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.storage import storage
-
+from datetime import datetime, timezone
 
 @pytest.fixture(autouse=True)
 def reset_storage():
@@ -172,3 +172,98 @@ def test_pagination_after_delete_stays_consistent(client, user):
     assert len(page1_ids) == 3
     assert len(page2_ids) == 2
     assert set(page1_ids).isdisjoint(page2_ids), "Pages should not overlap"
+
+def test_get_user_events_returns_all_events(client, user):
+    for event_type in ["login", "page_view", "click"]:
+        client.post(
+            "/events",
+            json={"user_id": user["id"], "event_type": event_type, "metadata": {}},
+        )
+
+    response = client.get(f"/users/{user['id']}/events")
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 3
+
+def test_get_user_events_filtered_by_since(client, user):
+    client.post("/events", json={"user_id": user["id"], "event_type": "login", "metadata": {}})
+    client.post("/events", json={"user_id": user["id"], "event_type": "page_view", "metadata": {}})
+
+    since = datetime.now(timezone.utc)
+    since_str = since.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+
+    client.post("/events", json={"user_id": user["id"], "event_type": "click", "metadata": {}})
+    client.post("/events", json={"user_id": user["id"], "event_type": "logout", "metadata": {}})
+
+    response = client.get(f"/users/{user['id']}/events?since={since_str}")
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 2
+    assert all(e["event_type"] in ["click", "logout"] for e in events)
+
+def test_get_user_events_unknown_user_returns_404(client):
+    response = client.get("/users/99999/events")
+    assert response.status_code == 404
+
+def test_get_user_events_no_events_returns_empty_list(client, user):
+    response = client.get(f"/users/{user['id']}/events")
+    assert response.status_code == 200
+    assert response.json() == []
+
+def test_get_user_events_since_in_future_returns_empty_list(client, user):
+    client.post("/events", json={"user_id": user["id"], "event_type": "login", "metadata": {}})
+
+    future = datetime(2099, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    future_str = future.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+
+    response = client.get(f"/users/{user['id']}/events?since={future_str}")
+    assert response.status_code == 200
+    assert response.json() == []
+
+def test_get_user_events_invalid_since_returns_422(client, user):
+    response = client.get(f"/users/{user['id']}/events?since=not-a-date")
+    assert response.status_code == 422
+
+def test_get_user_events_since_is_exclusive(client, user):
+    client.post("/events", json={"user_id": user["id"], "event_type": "login", "metadata": {}})
+
+    events_before = client.get(f"/users/{user['id']}/events").json()
+    since_str = events_before[0]["created_at"].replace("+00:00", "Z")
+
+    response = client.get(f"/users/{user['id']}/events?since={since_str}")
+    assert response.status_code == 200
+    assert response.json() == []
+def test_get_user_events_excludes_soft_deleted(client, user):
+    response = client.post("/events", json={"user_id": user["id"], "event_type": "login", "metadata": {}})
+    event_id = response.json()["id"]
+
+    client.delete(f"/events/{event_id}")
+
+    response = client.get(f"/users/{user['id']}/events")
+    assert response.status_code == 200
+    assert response.json() == []
+
+def test_get_user_events_returns_only_non_deleted(client, user):
+    r1 = client.post("/events", json={"user_id": user["id"], "event_type": "login", "metadata": {}})
+    r2 = client.post("/events", json={"user_id": user["id"], "event_type": "page_view", "metadata": {}})
+    r3 = client.post("/events", json={"user_id": user["id"], "event_type": "click", "metadata": {}})
+
+    client.delete(f"/events/{r2.json()['id']}")
+
+    response = client.get(f"/users/{user['id']}/events")
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 2
+    returned_ids = {e["id"] for e in events}
+    assert r1.json()["id"] in returned_ids
+    assert r3.json()["id"] in returned_ids
+    assert r2.json()["id"] not in returned_ids
+def test_get_user_events_returns_chronological_order(client, user):
+    for event_type in ["login", "page_view", "click"]:
+        client.post("/events", json={"user_id": user["id"], "event_type": event_type, "metadata": {}})
+
+    response = client.get(f"/users/{user['id']}/events")
+    assert response.status_code == 200
+    events = response.json()
+    timestamps = [e["created_at"] for e in events]
+    assert timestamps == sorted(timestamps)
