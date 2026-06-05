@@ -172,3 +172,15 @@ def test_pagination_after_delete_stays_consistent(client, user):
     assert len(page1_ids) == 3
     assert len(page2_ids) == 2
     assert set(page1_ids).isdisjoint(page2_ids), "Pages should not overlap"
+
+def test_get_user_events_returns_all_events(client, user):
+    for event_type in ["login", "page_view", "click"]:
+        client.post(
+            "/events",
+            json={"user_id": user["id"], "event_type": event_type, "metadata": {}},
+        )
+
+    response = client.get(f"/users/{user['id']}/events")
+    assert response.status_code == 200
+    events = response.json()
+    assert len(events) == 3

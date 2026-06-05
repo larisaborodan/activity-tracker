@@ -49,6 +49,19 @@ class Storage:
         # NOTE: returns events in insertion order
         all_events = [e for e in self._events.values() if e.deleted_at is None]
         return all_events[offset  : offset  + limit]
+    
+    def get_user_events(
+        self,
+        user_id: int,
+        since: Optional[datetime] = None,
+    ) -> list[Event]:
+        events = [
+            e for e in self._events.values()
+            if e.user_id == user_id
+            and e.deleted_at is None
+            and (since is None or e.created_at > since)
+        ]
+        return sorted(events, key=lambda e: e.created_at)
 
     def soft_delete_event(self, event_id: int) -> Optional[Event]:
         event = self._events.get(event_id)
